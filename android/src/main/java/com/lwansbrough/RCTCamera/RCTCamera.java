@@ -8,6 +8,8 @@ import android.hardware.Camera;
 import android.media.CamcorderProfile;
 import android.util.Log;
 
+import com.facebook.react.bridge.WritableMap;
+
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,6 +28,8 @@ public class RCTCamera {
     private int _orientation = -1;
     private int _actualDeviceOrientation = 0;
     private int _adjustedDeviceOrientation = 0;
+
+    private WritableMap _scanInfo;
 
     public static RCTCamera getInstance() {
         return ourInstance;
@@ -159,6 +163,9 @@ public class RCTCamera {
         adjustPreviewLayout(RCTCameraModule.RCT_CAMERA_TYPE_FRONT);
         adjustPreviewLayout(RCTCameraModule.RCT_CAMERA_TYPE_BACK);
     }
+
+    public void setScanInfo(WritableMap scanInfo) { _scanInfo = scanInfo; }
+    public WritableMap getScanInfo() { return _scanInfo; }
 
     public boolean isBarcodeScannerEnabled() {
       return _barcodeScannerEnabled;

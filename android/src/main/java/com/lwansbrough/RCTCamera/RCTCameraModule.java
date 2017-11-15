@@ -73,7 +73,6 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
 
     private static ReactApplicationContext _reactContext;
     private RCTSensorOrientationChecker _sensorOrientationChecker;
-    private MediaActionSound sound = new MediaActionSound();
 
     private MediaRecorder mMediaRecorder;
     private long MRStartTime;
@@ -88,7 +87,6 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
         _reactContext = reactContext;
         _sensorOrientationChecker = new RCTSensorOrientationChecker(_reactContext);
         _reactContext.addLifecycleEventListener(this);
-        sound.load(MediaActionSound.SHUTTER_CLICK);
     }
 
     public static ReactApplicationContext getReactContextSingleton() {
@@ -518,12 +516,15 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
         RCTCamera.getInstance().setCaptureQuality(options.getInt("type"), options.getString("quality"));
 
         if (options.hasKey("playSoundOnCapture") && options.getBoolean("playSoundOnCapture")) {
+            MediaActionSound sound = new MediaActionSound();
             sound.play(MediaActionSound.SHUTTER_CLICK);
         }
 
         if (options.hasKey("quality")) {
             RCTCamera.getInstance().setCaptureQuality(options.getInt("type"), options.getString("quality"));
         }
+
+        final Boolean shouldMirror = options.hasKey("mirrorImage") && options.getBoolean("mirrorImage");
 
         RCTCamera.getInstance().adjustCameraRotationToDeviceOrientation(options.getInt("type"), deviceOrientation);
         camera.setPreviewCallback(null);
@@ -537,7 +538,7 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
                 AsyncTask.execute(new Runnable() {
                     @Override
                     public void run() {
-                        processImage(new MutableImage(data), options, promise);
+                        processImage(new MutableImage(data), shouldMirror, options, promise);
                     }
                 });
 
@@ -559,17 +560,13 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
      * synchronized in order to prevent the user crashing the app by taking many photos and them all being processed
      * concurrently which would blow the memory (esp on smaller devices), and slow things down.
      */
-    private synchronized void processImage(MutableImage mutableImage, ReadableMap options, Promise promise) {
-        boolean shouldFixOrientation = options.hasKey("fixOrientation") && options.getBoolean("fixOrientation");
-        if(shouldFixOrientation) {
-            try {
-                mutableImage.fixOrientation();
-            } catch (MutableImage.ImageMutationFailedException e) {
-                promise.reject("Error fixing orientation image", e);
-            }
+    private synchronized void processImage(MutableImage mutableImage, Boolean shouldMirror, ReadableMap options, Promise promise) {
+        try {
+            mutableImage.fixOrientation();
+        } catch (MutableImage.ImageMutationFailedException e) {
+            promise.reject("Error mirroring image", e);
         }
-
-        boolean shouldMirror = options.hasKey("mirrorImage") && options.getBoolean("mirrorImage");
+        
         if (shouldMirror) {
             try {
                 mutableImage.mirrorImage();
@@ -599,14 +596,14 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
 
                 try {
                     mutableImage.writeDataToFile(cameraRollFile, options, jpegQualityPercent);
-                } catch (IOException | NullPointerException e) {
+                } catch (IOException e) {
                     promise.reject("failed to save image file", e);
                     return;
                 }
 
                 addToMediaStore(cameraRollFile.getAbsolutePath());
 
-                resolveImage(cameraRollFile, promise, true);
+                resolve(cameraRollFile, promise);
 
                 break;
             }
@@ -624,7 +621,7 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
                     return;
                 }
 
-                resolveImage(pictureFile, promise, false);
+                resolve(pictureFile, promise);
 
                 break;
             }
@@ -642,7 +639,7 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
                     return;
                 }
 
-                resolveImage(tempFile, promise, false);
+                resolve(tempFile, promise);
 
                 break;
             }
@@ -765,31 +762,27 @@ public class RCTCameraModule extends ReactContextBaseJavaModule
         // ... do nothing
     }
 
-    private void resolveImage(final File imageFile, final Promise promise, boolean addToMediaStore) {
+    private void resolve(final File imageFile, final Promise promise) {
         final WritableMap response = new WritableNativeMap();
         response.putString("path", Uri.fromFile(imageFile).toString());
 
-        if(addToMediaStore) {
-            // borrowed from react-native CameraRollManager, it finds and returns the 'internal'
-            // representation of the image uri that was just saved.
-            // e.g. content://media/external/images/media/123
-            MediaScannerConnection.scanFile(
-                    _reactContext,
-                    new String[]{imageFile.getAbsolutePath()},
-                    null,
-                    new MediaScannerConnection.OnScanCompletedListener() {
-                        @Override
-                        public void onScanCompleted(String path, Uri uri) {
-                            if (uri != null) {
-                                response.putString("mediaUri", uri.toString());
-                            }
-
-                            promise.resolve(response);
+        // borrowed from react-native CameraRollManager, it finds and returns the 'internal'
+        // representation of the image uri that was just saved.
+        // e.g. content://media/external/images/media/123
+        MediaScannerConnection.scanFile(
+                _reactContext,
+                new String[]{imageFile.getAbsolutePath()},
+                null,
+                new MediaScannerConnection.OnScanCompletedListener() {
+                    @Override
+                    public void onScanCompleted(String path, Uri uri) {
+                        if (uri != null) {
+                            response.putString("mediaUri", uri.toString());
                         }
-                    });
-        } else {
-            promise.resolve(response);
-        }
+
+                        promise.resolve(response);
+                    }
+                });
     }
 
 }

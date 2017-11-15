@@ -11,6 +11,8 @@ import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.View;
 
+import com.facebook.react.bridge.WritableMap;
+
 import java.util.List;
 
 public class RCTCameraView extends ViewGroup {
@@ -74,7 +76,7 @@ public class RCTCameraView extends ViewGroup {
                 _viewFinder.setFlashMode(this._flashMode);
             }
             if (-1 != this._torchMode) {
-                _viewFinder.setTorchMode(this._torchMode);
+                _viewFinder.setFlashMode(this._torchMode);
             }
             addView(_viewFinder);
         }
@@ -113,6 +115,10 @@ public class RCTCameraView extends ViewGroup {
         if (this._viewFinder != null) {
             layoutViewFinder();
         }
+    }
+
+    public void setScanInfo(WritableMap scanInfo) {
+        RCTCamera.getInstance().setScanInfo(scanInfo);
     }
 
     public void setBarcodeScannerEnabled(boolean barcodeScannerEnabled) {

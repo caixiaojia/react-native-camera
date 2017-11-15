@@ -5,14 +5,16 @@ import {
   NativeAppEventEmitter, // ios
   NativeModules,
   Platform,
+  Dimensions,
   StyleSheet,
   requireNativeComponent,
   View,
-  ViewPropTypes
 } from 'react-native';
 
 const CameraManager = NativeModules.CameraManager || NativeModules.CameraModule;
 const CAMERA_REF = 'camera';
+
+const {width, height} = Dimensions.get('screen');
 
 function convertNativeProps(props) {
   const newProps = { ...props };
@@ -48,6 +50,18 @@ function convertNativeProps(props) {
     newProps.captureTarget = Camera.constants.CaptureTarget[props.captureTarget];
   }
 
+  if (typeof props.scanInfo === 'object') {
+    const scanInfo = {
+      top: Math.round(props.scanInfo.top || 0),
+      left: Math.round(props.scanInfo.left || 0),
+      width: Math.round(props.scanInfo.width || width),
+      height: Math.round(props.scanInfo.height || height),
+      screenWidth: Math.round(props.scanInfo.screenWidth || width),
+      screenHeight: Math.round(props.scanInfo.screenHeight || height)
+    };
+    newProps.scanInfo = JSON.stringify(scanInfo);
+  }
+
   // do not register barCodeTypes if no barcode listener
   if (typeof props.onBarCodeRead !== 'function') {
     newProps.barCodeTypes = [];
@@ -73,7 +87,7 @@ export default class Camera extends Component {
   };
 
   static propTypes = {
-    ...ViewPropTypes,
+    ...View.propTypes,
     aspect: PropTypes.oneOfType([
       PropTypes.string,
       PropTypes.number
@@ -102,7 +116,6 @@ export default class Camera extends Component {
     onFocusChanged: PropTypes.func,
     onZoomChanged: PropTypes.func,
     mirrorImage: PropTypes.bool,
-    fixOrientation: PropTypes.bool,
     barCodeTypes: PropTypes.array,
     orientation: PropTypes.oneOfType([
       PropTypes.string,
@@ -116,6 +129,10 @@ export default class Camera extends Component {
     type: PropTypes.oneOfType([
       PropTypes.string,
       PropTypes.number
+    ]),
+    scanInfo: PropTypes.oneOfType([
+      PropTypes.string,
+      PropTypes.object
     ])
   };
 
@@ -123,7 +140,6 @@ export default class Camera extends Component {
     aspect: CameraManager.Aspect.fill,
     type: CameraManager.Type.back,
     orientation: CameraManager.Orientation.auto,
-    fixOrientation: false,
     captureAudio: false,
     captureMode: CameraManager.CaptureMode.still,
     captureTarget: CameraManager.CaptureTarget.cameraRoll,
@@ -134,6 +150,7 @@ export default class Camera extends Component {
     torchMode: CameraManager.TorchMode.off,
     mirrorImage: false,
     barCodeTypes: Object.values(CameraManager.BarCodeType),
+    scanInfo: JSON.stringify({top:0,left:0,width,height,screenWidth:width,screenHeight:height})
   };
 
   static checkDeviceAuthorizationStatus = CameraManager.checkDeviceAuthorizationStatus;
@@ -200,7 +217,6 @@ export default class Camera extends Component {
   render() {
     const style = [styles.base, this.props.style];
     const nativeProps = convertNativeProps(this.props);
-
     return <RCTCamera ref={CAMERA_REF} {...nativeProps} />;
   }
 
@@ -223,7 +239,6 @@ export default class Camera extends Component {
       title: '',
       description: '',
       mirrorImage: props.mirrorImage,
-      fixOrientation: props.fixOrientation,
       ...options
     };
 
@@ -261,15 +276,7 @@ export default class Camera extends Component {
 
 export const constants = Camera.constants;
 
-const RCTCamera = requireNativeComponent('RCTCamera', Camera, {nativeOnly: {
-  testID: true,
-  renderToHardwareTextureAndroid: true,
-  accessibilityLabel: true,
-  importantForAccessibility: true,
-  accessibilityLiveRegion: true,
-  accessibilityComponentType: true,
-  onLayout: true
-}});
+const RCTCamera = requireNativeComponent('RCTCamera', Camera);
 
 const styles = StyleSheet.create({
   base: {},

@@ -5,16 +5,15 @@
 package com.lwansbrough.RCTCamera;
 
 import android.content.Context;
-import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
+import android.util.Log;
 import android.view.MotionEvent;
 import android.view.TextureView;
 import android.os.AsyncTask;
 
 import com.facebook.react.bridge.Arguments;
 import com.facebook.react.bridge.ReactContext;
-import com.facebook.react.bridge.WritableArray;
 import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
@@ -29,7 +28,6 @@ import com.google.zxing.DecodeHintType;
 import com.google.zxing.MultiFormatReader;
 import com.google.zxing.PlanarYUVLuminanceSource;
 import com.google.zxing.Result;
-import com.google.zxing.ResultPoint;
 import com.google.zxing.common.HybridBinarizer;
 
 class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceTextureListener, Camera.PreviewCallback {
@@ -324,25 +322,21 @@ class RCTCameraViewFinder extends TextureView implements TextureView.SurfaceText
                 imageData = rotated;
             }
 
+            WritableMap scanInfo = RCTCamera.getInstance().getScanInfo();
+            double horizontalRate = (double)width / scanInfo.getInt("screenWidth");
+            double verticalRate = (double)height / scanInfo.getInt("screenHeight");
+            int aLeft = (int)(scanInfo.getInt("left") * horizontalRate);
+            int aWidth = (int)(scanInfo.getInt("width") * horizontalRate);
+            int aTop = (int)(scanInfo.getInt("top") * verticalRate);
+            int aHeight = (int)(scanInfo.getInt("height") * verticalRate);
+
             try {
-                PlanarYUVLuminanceSource source = new PlanarYUVLuminanceSource(imageData, width, height, 0, 0, width, height, false);
+                PlanarYUVLuminanceSource source = new PlanarYUVLuminanceSource(imageData, width, height, aLeft, aTop, aWidth, aHeight, false);
                 BinaryBitmap bitmap = new BinaryBitmap(new HybridBinarizer(source));
                 Result result = _multiFormatReader.decodeWithState(bitmap);
 
                 ReactContext reactContext = RCTCameraModule.getReactContextSingleton();
                 WritableMap event = Arguments.createMap();
-                WritableArray resultPoints = Arguments.createArray();
-                ResultPoint[] points = result.getResultPoints();
-                if(points != null) {
-                    for (ResultPoint point : points) {
-                        WritableMap newPoint = Arguments.createMap();
-                        newPoint.putString("x", String.valueOf(point.getX()));
-                        newPoint.putString("y", String.valueOf(point.getY()));
-                        resultPoints.pushMap(newPoint);
-                    }
-                }
-
-                event.putArray("bounds", resultPoints);
                 event.putString("data", result.getText());
                 event.putString("type", result.getBarcodeFormat().toString());
                 reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class).emit("CameraBarCodeReadAndroid", event);
